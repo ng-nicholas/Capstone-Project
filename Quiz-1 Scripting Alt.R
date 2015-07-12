@@ -18,6 +18,7 @@ setwd(dirWork)
 rm(dirWork)
 
 # The following lines of code will print out the answers to the questions
+# Question 1
 print("# Question 1: The en_US.blogs.txt file is how many megabytes?")
 dirDetails <- strsplit(gsub("\\s{2,}", "", system("ls -alh", intern = T)),
                        split = "\\s")
@@ -30,6 +31,7 @@ print(paste0(">> The file is ", gsub("[:alpha:]", "", answer1),
              "b large."))
 rm(dirDetails, answer1)
 
+# Question 2
 print("# Question 2: The en_US.twitter.txt has how many lines of text?")
 answer2 <- strsplit(gsub("\\s{2,}", "", system("wc -l en_US.twitter.txt",
                                                intern = T)),
@@ -39,6 +41,7 @@ print(paste0(">> There are ",
              " lines of text in the file."))
 rm(answer2)
 
+# Question 3
 print(paste0("# Question 3: What is the length of the longest line seen in ",
              "any of the three en_US data sets?"))
 lineList <- strsplit(gsub("\\s{2,}", "", system("wc -L *.txt", intern = T)),
@@ -54,6 +57,7 @@ print(paste0(">> The longest line(s) is ",
              lineFrame[[2]][match(longLine, lineFrame[[1]])], " file."))
 rm(lineList, lineFrame, longLine)
 
+# Question 4
 print(paste0("# Question 4: In the en_US twitter data set, if you divide the ",
              "number of lines where the word 'love' (all lowercase) occurs by ",
              "the number of lines the word 'hate' (all lowercase) occurs, ",
@@ -69,11 +73,13 @@ print(paste0(">> The love/hate relationship is ",
              "."))
 rm(con, love, hate, rship)
 
+# Question 5
 print(paste0("# Question 5: The one tweet in the en_US twitter data set that ",
              "matches the word 'biostats' says what?"))
 print(paste0(">> This is what it says: ",
              grep("biostats", twitLines, ignore.case = T, value = T)))
 
+# Question 6
 print(paste0("# Question 6: How many tweets have the exact characters 'A ",
              "computer once beat me at chess, but it was no match for me at ",
              "kickboxing'. (I.e. the line matches those characters exactly.)"))
