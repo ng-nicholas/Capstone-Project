@@ -1,4 +1,4 @@
-## Scripting file for Task 1
+## Scripting file for Milestone Report
 
 # Loading packages for parallel computing and setting options
 library("cluster")
@@ -17,7 +17,7 @@ library("dplyr")
 # Defining directories and setting working directory
 print("# Defining and setting working directory...")
 dirWork <- "C:/Users/Nicholas/Documents/GitHub/Capstone/"
-dirData <- "./Data/"
+dirData <- "./Coursera-SwiftKey/final/en_US/"
 dirCorp <- "./Corpus/"
 if (dir.exists(dirCorp) == F) {
     dir.create(dirCorp)
@@ -31,6 +31,10 @@ corpText <- PCorpus(DirSource(dirData),
                                          language = "en_US"),
                     dbControl = list(dbName = paste0(dirCorp, "ProjectTexts.db"),
                                      dbType = "DB1"))
+
+# Data cleaning on the corpus
+corpText <- tm_map(corpText, stripWhitespace)
+corpText <- tm_map(corpText, content_transformer(gsub("[:punct:]", "")))
 
 # Storing data in data tables
 dataText <- lapply(corpText, as.character)
@@ -47,6 +51,4 @@ dataBlogs <- dataBlogs %>%
                 mutate(chrCount = nchar(textData),
                        wordCount = gregexpr("[[:alpha:]]+", textData))
 
-# Data cleaning on the corpus
-corpText <- tm_map(corpText, stripWhitespace)
-corpText <- tm_map(corpText, content_transformer(gsub("[:punct:]", "")))
+

@@ -13,7 +13,7 @@ library("tm")
 
 # Defining directories and setting working directory
 print("# Defining and setting working directory...")
-dirWork <- "C:/Users/Nicholas/Documents/GitHub/Capstone/"
+dirWork <- "C:/Users/Nicholas/Documents/GitHub/Capstone-Project/"
 dirData <- "./Coursera-SwiftKey/final/en_US/"
 dirCorp <- "./Corpus/"
 if (dir.exists(dirCorp) == F) {
