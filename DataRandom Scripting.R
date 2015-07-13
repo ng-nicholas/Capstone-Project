@@ -24,16 +24,17 @@ set.seed(100)
 # Extracting subsets of files to create samples to work with
 print("# Creating samples...")
 for (i in 1:length(dir(dirWork))) {
-    con <- file(dir(dirWork[i]), "r")
-    readLines(con)
+    con <- file(dir(dirWork)[i], "r")
+    dataLines <- readLines(con)
     close(con)
 
+    randSample <- sample(dataLines, 1000)
 
+    dataType <- gsub(".txt", "", dir(dirWork)[i])
+    if (!file.exists(paste0(dataType, "(rand).txt"))) {
+        file.create(paste0(dataType, "(rand).txt"))
+    }
+    con <- file(paste0(dataType, "(rand).txt"), "r+")
+    writeLines(randSample, con)
+    close(con)
 }
-
-# Generating statistics of each element in each data table
-dataBlogs <- dataBlogs %>%
-                mutate(chrCount = nchar(textData),
-                       wordCount = gregexpr("[[:alpha:]]+", textData))
-
-
