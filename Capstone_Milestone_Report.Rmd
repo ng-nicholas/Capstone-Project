@@ -1,0 +1,242 @@
+---
+title: "DSS Capstone Milestone Report"
+author: "Nicholas Ng"
+date: "26 July 2015"
+output: html_document
+---
+
+# Introduction
+As part of the process of building a text prediction application in the R framework, basic data processing as well as exploratory analysis is required in order to better understand the nature of the data, as well as to prepare the data for further modelling.
+
+This report therefore aims to achieve the following:
+
+1. Load the raw data from the given files,
+2. Analyse the raw data,
+3. Clean the raw data and,
+4. Understand the cleaned data.
+
+Through the above, we will gain a better understanding of the data and provide a stepping stone to modelling and deciding on the best prediction algorithm in the later part of this project.
+
+# Loading Required Packages
+To minimise the length of this report, I have hidden the system messages for the package loading in this section.
+
+## Parallel Computing Packages
+The following packages and settings are used to enable parallel processing wherever possible.
+```{r para-packs, results='hide'}
+library("cluster", quietly = T)
+library("parallel", quietly = T)
+library("doSNOW", quietly = T)
+coreNumber <- max(detectCores(),1)
+cluster <- makeCluster(coreNumber, type = "SOCK",outfile="")
+registerDoSNOW(cluster)
+```
+
+## Data Reading Packages
+`readr` is a good package for fast reading of text from text files, while `RCurl` provides a more robust means of referring to websites/pages on a windows platform.
+```{r read-packs, results='hide'}
+library("readr", quietly = T)
+library("RCurl", quietly = T)
+```
+
+## NLP Packages
+`tm` is your standard NLP package, while `RWeka` provides n-gram tokenisation functions which is very handy. Do take note however, that `RWeka` requires Java to be installed on your computer.
+```{r nlp-packs, results='hide'}
+library("tm", quietly = T)
+library("RWeka", quietly = T)
+```
+
+## Visualisation Packages
+```{r vis-packs, results='hide'}
+library("wordcloud", quietly = T)
+library("ggplot2", quietly = T)
+```
+
+# Data Background and Loading
+The data provided for this project comes from a collection of text extracted from news websites, blogs and Twitter, by the Swiftkey team. 
+
+Since no processing was done post-extraction, it is therefore safe to assume that the data is very raw and would require heavy scrubbing before it can be used for text prediction. One should expect that the data would contain special characters beyond the typical English alphanumeric characters, profanities, grammatic & spelling errors, etc.
+
+As a brief look into the data however, the following code provides the size, word and line counts of each of the 3 files:
+```{r workdirset}
+filePath <- "~/GitHub/Capstone-Project/Coursera-SwiftKey/final/en_US/"
+dataFiles <- grep("en_US", dir(filePath), value = T)
+dataPaths <- paste0(filePath, dataFiles)
+```
+
+```{r filesizes}
+dirDetails <- strsplit(gsub("^\\s|\\s{2,}", "", 
+                            system(paste0("ls -alh ", filePath), intern = T)),
+                       split = "\\s")
+for (i in 1:length(dirDetails)) {
+    if (sum(grepl("en_US", dirDetails[[i]])) > 0) {
+        print(paste0(dirDetails[[i]][length(dirDetails[[i]])], " is ",
+                     dirDetails[[i]][4], "b large."))
+    }
+}
+```
+
+```{r filelines}
+textCount <- strsplit(gsub("^\\s|\\s{2,}", "", 
+                           system(paste0("wc -l ", filePath, "*.txt"),
+                                  intern = T)), 
+                      split = "\\s")
+for (i in 1:length(dataFiles)) {
+    print(paste0("There are ", format(as.numeric(textCount[[i]][1]), 
+                                      big.mark = ",", trim = T),
+                 " lines of text in ", dataFiles[i], "."))
+}
+```
+
+```{r filewords}
+textCount <- strsplit(gsub("^\\s|\\s{2,}", "", 
+                           system(paste0("wc -w ", filePath, "*.txt"),
+                                  intern = T)), 
+                      split = "\\s")
+for (i in 1:length(dataFiles)) {
+    print(paste0("There are ", format(as.numeric(textCount[[i]][1]), 
+                                      big.mark = ",", trim = T),
+                 " words in ", dataFiles[i], "."))
+}
+```
+
+```{r filechars}
+textCount <- strsplit(gsub("^\\s|\\s{2,}", "", 
+                           system(paste0("wc -m ", filePath, "*.txt"),
+                                  intern = T)), 
+                      split = "\\s")
+for (i in 1:length(dataFiles)) {
+    print(paste0("There are ", format(as.numeric(textCount[[i]][1]), 
+                                      big.mark = ",", trim = T),
+                 " characters in ", dataFiles[i], "."))
+}
+```
+
+## Primary Data Loading
+With the required packages loaded in the earlier section, we can now pull our data into R. However, as the data files that we are working with are very large as seen in the counts above, it would be very unwieldy for us to work with the whole chunk of data from all 3 files. Therefore, in the following code, what has been scripted is for data to be randomly sampled from each of the files. 
+
+An arbitrary number has been used as the sample percentage, but this may be changed later accordingly, when the full amount of data is required for modelling. `n` can either be a decimal between 0 and 1 or an integer greater than 1, whereby the former is taken as a percentage of the total lines available in each file, while the latter is an absolute number of lines to be read.
+
+It should also be noted that the data from all three files has been combined, since the ultimate goal is create a general-purpose text prediction app. It is therefore not necessary to separate the data according to its source. 
+
+```{r dataload}
+set.seed(100)
+n <- 1000
+randSample <- c()
+for (i in 1:length(dataFiles)) {
+    dataLines <- read_lines(dataPaths[i])
+    if (n > 1) {
+        sampsize <- n
+    } else {
+        sampsize <- round(n * length(dataLines), 0)
+    }
+    randSample <- c(randSample, sample(dataLines, sampsize))
+}
+```
+
+For easier working with the data, the `tm` package's corpus functions will be used. This will therefore require us to transform the loaded data into a corpus:
+```{r dataconv}
+dataCorp <- VCorpus(VectorSource(randSample))
+```
+
+## Profanity Dictionary
+Since profanities might be included in some of the data (one data source is blogs while another is Twitter), it would be beneficial for us to remove profanities from the data, so as to prevent the prediction model later on from predicting profanities to complete an n-gram. The following code therefore downloads a list of profanities from a readily available source:
+```{r profane}
+urlpro <- "http://www.bannedwordlist.com/lists/swearWords.csv"
+dictPro <- c(t(read.csv(text = getURL(urlpro), header = F)))
+```
+
+# Data Transformations
+Thankfully, the `tm` package provides multiple tools for text cleaning here, once the data has been converted into a corpus. As mentioned before, since 2 data sources are media that is user-generated and has not undergone any professional censorship or editing, it would be necessary to perform some standardised cleaning on the data.
+
+Subsequently, with the cleaned data, we will be able to create a term document matrix, as well as n-gram dictionaries.
+
+## Data Cleaning
+In the following code, the `tm_map` function is used to interact with the corpus of text. The first mapping command scans the data and retains only alphanumeric characters, removing special characters. The following steps then convert the text to lower case, removing punctuation, numbers, profanities, extra whitespace and stem words:
+```{r corptrans}
+keepAlnum <- content_transformer(function(x, pattern) gsub(pattern, "", x))
+dataCorp <- tm_map(dataCorp, keepAlnum, "[^0-9A-Za-z///' ]")
+dataCorp <- tm_map(dataCorp, content_transformer(tolower))
+dataCorp <- tm_map(dataCorp, removePunctuation)
+dataCorp <- tm_map(dataCorp, removeNumbers)
+dataCorp <- tm_map(dataCorp, removeWords, dictPro) 
+dataCorp <- tm_map(dataCorp, stripWhitespace)
+dataCorp <- tm_map(dataCorp, stemDocument, "english")
+```
+
+With the above transformations, there are 2 goals achieved:
+
+1. The data is now cleaner and,
+2. The size of this data block is now smaller.
+
+## Building a Term Document Matrix
+With a term document matrix (TDM), it becomes easier to identify where high frequency words can be found, however, as the corpus contains a large amount of data, this becomes less useful:
+```{r tdmbuild}
+dataTDM <- TermDocumentMatrix(dataCorp)
+```
+
+On the other hand, if the TDM is inspected, there are basic summary statistics that are provided which will give a good idea about sparsity of the data:
+```{r tdminspect}
+inspect(dataTDM[1:10, 1:20])
+```
+
+## Building N-grams Dictionaries
+Lastly, as N-grams (blocks of n-number of words) is the essential building block of any text prediction algorithm, we build uni-, bi- and trigram tables as follows:
+```{r ngrams}
+dataDF <- data.frame(text = unlist(sapply(dataCorp, '[', "content")),
+                     stringsAsFactors = F)
+tokenDelims <- " \\t\\r\\n.!?,;\"()"
+tokenUni <- NGramTokenizer(dataDF, Weka_control(min = 1, max = 1))
+tokenBi <- NGramTokenizer(dataDF, Weka_control(min = 2, max = 2,
+                                                delimiters = tokenDelims))
+tokenTri <- NGramTokenizer(dataDF, Weka_control(min = 3, max = 3,
+                                                delimiters = tokenDelims))
+tableUni <- data.frame(table(tokenUni))
+tableBi <- data.frame(table(tokenBi))
+tableTri <- data.frame(table(tokenTri))
+
+tableUni <- tableUni[order(tableUni$Freq, decreasing = TRUE), ]
+tableBi <- tableBi[order(tableBi$Freq, decreasing = TRUE), ]
+tableTri <- tableTri[order(tableTri$Freq, decreasing = TRUE), ]
+```
+
+# Exploratory Analyses
+## Wordcloud
+A wordcloud allows us to quickly visualise some of the most recurring words in the corpus in a visually stimulating and easy to read way:
+```{r wordcloud}
+wordcloud(dataCorp, scale = c(11, 0.5), max.words = 200, random.order = F,
+          rot.per = 0.35, use.r.layout = F, colors = brewer.pal(8, "Dark2"))
+```
+
+Since none of the typical stopwords were removed, it was to be expected that some of the most common words would be stopwords like "the" and "and". However, it is in our best interests that stopwords not be removed, as that would affect our algorithm's predictive ability later on.
+
+## N-gram Frequency Charts
+Based on the n-gram dictionaries that we constructed earlier on, we are able to identify the top 10 most common n-grams in a series of charts:
+
+```{r unigramfreq}
+ggplot(tableUni[1:10, ], aes(x = reorder(tokenUni, -Freq, sum), y = Freq)) +
+    geom_bar(stat = "Identity") + 
+    geom_text(aes(label = format(as.numeric(Freq), big.mark = ",", trim = T)),
+              vjust = -0.4) +
+    labs(title = "Top 10 Unigrams", x = "Unigrams", y = "Frequency")
+```
+
+```{r bigramfreq}
+ggplot(tableBi[1:10, ], aes(x = reorder(tokenBi, -Freq, sum), y = Freq)) +
+    geom_bar(stat = "Identity") + 
+    geom_text(aes(label = format(as.numeric(Freq), big.mark = ",", trim = T)),
+              vjust = -0.4) +
+    labs(title = "Top 10 Bigrams", x = "Bigrams", y = "Frequency")
+```
+
+```{r trigramfreq}
+ggplot(tableTri[1:10, ], aes(x = reorder(tokenTri, -Freq, sum), y = Freq)) +
+    geom_bar(stat = "Identity") + 
+    geom_text(aes(label = format(as.numeric(Freq), big.mark = ",", trim = T)),
+              vjust = -0.4) +
+    labs(title = "Top 10 Trigrams", x = "Trigrams", y = "Frequency")
+```
+
+# Concluding Remarks
+Based on the above exploratory analyses, we can see that the data has been suitably cleaned for basic modelling and prediction.
+
+However, next steps would likely involve further cleaning to tackle some of the smaller details (changing "don't"s to "do not", etc.), and working on reducing sparsity so as to cut down on the size of the n-gram dictionaries. Once that is done, any models relying on the above n-gram tables would then be able to provide better predictions. 

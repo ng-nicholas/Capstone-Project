@@ -1,0 +1,15 @@
+base
+cluster
+foreach
+iterators
+snow
+doSNOW
+readr
+bitops
+RCurl
+NLP
+tm
+RWeka
+RColorBrewer
+wordcloud
+ggplot2
