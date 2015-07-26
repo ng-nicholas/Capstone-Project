@@ -15,7 +15,7 @@ registerDoSNOW(cluster)
 
 # Loading data manipulation packages
 library("readr")
-library("data.table")
+# library("data.table")
 library("RCurl")
 library("tm")
 library("RWeka")
@@ -58,7 +58,7 @@ dataCorp <- tm_map(dataCorp, removePunctuation) # rm punct
 dataCorp <- tm_map(dataCorp, removeNumbers) # rm numbers
 dataCorp <- tm_map(dataCorp, removeWords, dictPro) # rm profanities
 dataCorp <- tm_map(dataCorp, stripWhitespace) # strip whitespace
-# dataCorp <- tm_map(dataCorp, stemDocument, "english") # stemming
+dataCorp <- tm_map(dataCorp, stemDocument, "english") # stemming
 
 # Term Document Matrix
 print(paste0("# Building term-document matrix..."))
